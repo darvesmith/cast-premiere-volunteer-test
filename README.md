@@ -13,10 +13,13 @@ into two Google accounts gets the Drive "unable to open the file" error
   same phone validation, same remember-me (email in localStorage,
   details looked up from the contact list), plus a "Return to the CAST
   Home Page" button on the confirmation step.
-- It talks to the same Apps Script backend over a JSON API (JSONP, so it
-  works from any static page with no server code): `?action=getRoles`,
+- It talks to the same Apps Script backend over a JSON API using plain
+  `fetch()` with no credentials, so a phone signed into several Google
+  accounts cannot be bounced to a `/u/` address that 404s (the backend
+  answers with `Access-Control-Allow-Origin: *`). JSONP is kept as a
+  fallback for browsers without fetch. Actions: `?action=getRoles`,
   `?action=lookupContact&email=...`, `?action=submitSignup&name=...&
-  email=...&phone=...&roles=...` with `&callback=` for JSONP.
+  email=...&phone=...&roles=...` (JSONP adds `&callback=`).
 - Backend: `~/workspace/premiere-volunteer-form/Code.gs` (doGet serves
   the API when `?action=` is present, the old HTML form otherwise).
   Signups still land in the same TEST sheet, Counts/Contacts tabs are

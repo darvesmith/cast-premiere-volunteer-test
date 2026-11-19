@@ -146,12 +146,31 @@
 <script>
   var rolesData = [];
 
-  // Talk to the Apps Script backend as a JSON API (JSONP). This works from
-  // any plain web page — no server code, no Google sign-in routing, so the
-  // form loads for people signed into more than one Google account.
+  // Talk to the Apps Script backend as a JSON API. Plain fetch() sends no
+  // Google cookies to the backend (cross-origin), so a phone signed into
+  // several Google accounts cannot be bounced to a /u/ address that 404s —
+  // that is what broke the form on phones when it used JSONP script tags,
+  // which do carry the browser's Google cookies. The backend answers with
+  // Access-Control-Allow-Origin: *, so fetch works from any page.
+  // JSONP is kept as the fallback for browsers without fetch.
   var API_URL = 'https://script.google.com/macros/s/AKfycbyhTugLeyvkXwyD7GagOIfDHkbY73OqDk6TtYzQbrL2xjkYlP5Y5UG6x6HIIe5Rkxyf/exec';
-  var __apiSeq = 0;
   function apiCall(action, params, onSuccess, onFailure) {
+    var q = 'action=' + encodeURIComponent(action);
+    Object.keys(params || {}).forEach(function (k) { q += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); });
+    var url = API_URL + '?' + q;
+    if (window.fetch) {
+      var ctrl = ('AbortController' in window) ? new AbortController() : null;
+      var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, 30000);
+      fetch(url, { credentials: 'omit', signal: ctrl ? ctrl.signal : undefined })
+        .then(function (resp) { if (!resp.ok) throw new Error('http ' + resp.status); return resp.json(); })
+        .then(function (res) { clearTimeout(timer); onSuccess(res); })
+        .catch(function () { clearTimeout(timer); apiCallJsonp(action, params, onSuccess, onFailure); });
+      return;
+    }
+    apiCallJsonp(action, params, onSuccess, onFailure);
+  }
+  var __apiSeq = 0;
+  function apiCallJsonp(action, params, onSuccess, onFailure) {
     var cbName = '__castApi' + (++__apiSeq) + '_' + Date.now();
     var q = 'action=' + encodeURIComponent(action);
     Object.keys(params || {}).forEach(function (k) { q += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); });
