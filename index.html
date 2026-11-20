@@ -88,6 +88,14 @@
     padding: 0;
     margin-top: 14px;
   }
+  .welcome {
+    background: #fff;
+    border: 1px solid #d9cba8;
+    border-radius: 6px;
+    padding: 14px;
+    margin: 0 0 16px;
+    font-size: 17px;
+  }
   #confirm { min-height: 650px; display: flex; flex-direction: column; justify-content: center; }
   #confirm h2 { font-family: Georgia, 'Times New Roman', serif; font-size: 24px; margin: 0 0 10px; color: #990000; }
   #confirm p { margin: 0 0 8px; font-size: 17px; }
@@ -111,6 +119,14 @@
 
     <button id="continue" class="action" type="button" onclick="goToRoles()">Continue</button>
     <div id="msg1" class="msg"></div>
+  </div>
+
+  <!-- WELCOME BACK: remembered device -->
+  <div id="step-welcome" style="display:none">
+    <h1>Welcome back</h1>
+    <div class="welcome" id="welcome-text"></div>
+    <button class="action" type="button" onclick="welcomeContinue()">Continue</button>
+    <button type="button" class="backlink" onclick="welcomeSomeoneElse()">Log in as someone else</button>
   </div>
 
   <!-- STEP 2: pick roles -->
@@ -277,7 +293,7 @@
       if (!document.getElementById('phone').value.trim()) document.getElementById('phone').value = c.phone || '';
       if (autoAdvance && document.getElementById('name').value.trim() && document.getElementById('phone').value.trim()) {
         showMsg('msg1', '', '');
-        goToRoles();
+        showWelcome(c.name, email);
       } else if (c.name) {
         showMsg('msg1', 'Welcome back, ' + c.name.split(' ')[0] + ' — we filled in your details.', '');
       }
@@ -292,6 +308,28 @@
     document.getElementById('remember').checked = false;
     document.getElementById('forget').style.display = 'none';
     showMsg('msg1', '', '');
+  }
+
+  // Remembered device: show "You are logged in as ..." first, instead of
+  // jumping straight to the roles. Continue goes to the roles; "someone
+  // else" clears the saved email and starts fresh on the details step.
+  function showWelcome(name, email) {
+    document.getElementById('welcome-text').textContent = 'You are logged in as ' + name + ' (' + email + ').';
+    document.getElementById('step-details').style.display = 'none';
+    var w = document.getElementById('step-welcome');
+    w.style.display = 'block';
+    if (w.scrollIntoView) w.scrollIntoView();
+  }
+  function welcomeContinue() {
+    document.getElementById('step-welcome').style.display = 'none';
+    goToRoles();
+  }
+  function welcomeSomeoneElse() {
+    document.getElementById('step-welcome').style.display = 'none';
+    forgetDevice();
+    var details = document.getElementById('step-details');
+    details.style.display = 'block';
+    if (details.scrollIntoView) details.scrollIntoView();
   }
 
   function goToRoles() {
@@ -375,7 +413,8 @@
 
   loadRoles();
 
-  // Remembered device: pre-fill from the saved email and go straight to roles.
+  // Remembered device: pre-fill from the saved email and show the
+  // "You are logged in as ..." step before the roles.
   (function () {
     var saved = getRememberedEmail();
     if (saved) {
