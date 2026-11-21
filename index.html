@@ -96,6 +96,20 @@
     margin: 0 0 16px;
     font-size: 17px;
   }
+  .mysignups { margin: 12px 0 4px; }
+  .mysignups h3 { font-family: Georgia, 'Times New Roman', serif; font-size: 16px; margin: 0 0 8px; color: #990000; }
+  .signup-item {
+    display: flex; align-items: center; gap: 10px;
+    background: #f7f1e3; border: 1px solid #d9cba8; border-radius: 6px;
+    padding: 10px 12px; margin-bottom: 8px; font-size: 15px;
+  }
+  .signup-item .sname { flex: 1; }
+  .cancel-btn {
+    background: #fff; border: 1px solid #990000; color: #990000;
+    border-radius: 6px; padding: 6px 10px; font-size: 14px; cursor: pointer; white-space: nowrap;
+  }
+  .cancel-btn.confirm { background: #990000; color: #fff; font-weight: 700; }
+  .cancel-box { background: #fff; border: 1px solid #d9cba8; border-radius: 6px; padding: 14px; margin: 14px 0; }
   #confirm { min-height: 650px; display: flex; flex-direction: column; justify-content: center; }
   #confirm h2 { font-family: Georgia, 'Times New Roman', serif; font-size: 24px; margin: 0 0 10px; color: #990000; }
   #confirm p { margin: 0 0 8px; font-size: 17px; }
@@ -119,12 +133,20 @@
 
     <button id="continue" class="action" type="button" onclick="goToRoles()">Continue</button>
     <div id="msg1" class="msg"></div>
+    <button type="button" class="backlink" onclick="toggleCancelBox()">Need to cancel a signup you already made?</button>
+    <div id="cancel-box" class="cancel-box" style="display:none">
+      <label class="field"><span>Your email</span><input id="cancel-email" type="email" autocomplete="email"></label>
+      <button type="button" class="action" onclick="findMySignups()">Find my signups</button>
+      <div id="cancel-list" class="mysignups"></div>
+      <div id="msg-cancel" class="msg"></div>
+    </div>
   </div>
 
   <!-- WELCOME BACK: remembered device -->
   <div id="step-welcome" style="display:none">
     <h1>Welcome back</h1>
     <div class="welcome" id="welcome-text"></div>
+    <div id="welcome-signups" class="mysignups"></div>
     <button class="action" type="button" onclick="welcomeContinue()">Continue</button>
     <button type="button" class="backlink" onclick="welcomeSomeoneElse()">Log in as someone else</button>
   </div>
@@ -252,6 +274,7 @@
 
   function showMsg(id, text, kind) {
     var m = document.getElementById(id);
+    if (!m) return;
     m.textContent = text;
     m.className = 'msg ' + (kind || '');
   }
@@ -318,6 +341,7 @@
     document.getElementById('step-details').style.display = 'none';
     var w = document.getElementById('step-welcome');
     w.style.display = 'block';
+    loadMySignups(email, 'welcome-signups');
     if (w.scrollIntoView) w.scrollIntoView();
   }
   function welcomeContinue() {
@@ -330,6 +354,100 @@
     var details = document.getElementById('step-details');
     details.style.display = 'block';
     if (details.scrollIntoView) details.scrollIntoView();
+  }
+
+  // "Your signups" — what this volunteer has already signed up for, with a
+  // way to cancel each role. Renders into the given container element.
+  function loadMySignups(email, containerId) {
+    var box = document.getElementById(containerId);
+    if (!box) return;
+    box.innerHTML = '<p class="hint">Loading your signups&hellip;</p>';
+    apiCall('getMySignups', { email: email }, function (res) {
+      box.innerHTML = '';
+      if (!res || !res.ok) {
+        box.innerHTML = '<p class="hint">Could not load your signups. Please try again.</p>';
+        return;
+      }
+      var list = res.signups || [];
+      if (!list.length) {
+        box.innerHTML = '<p class="hint">You have no signups yet.</p>';
+        return;
+      }
+      var h = document.createElement('h3');
+      h.textContent = 'Your signups';
+      box.appendChild(h);
+      list.forEach(function (s) {
+        var item = document.createElement('div');
+        item.className = 'signup-item';
+        var nm = document.createElement('span');
+        nm.className = 'sname';
+        nm.textContent = s.role;
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'cancel-btn';
+        btn.textContent = 'Cancel';
+        btn.onclick = function () { askCancel(s.role, s.row, btn, email); };
+        item.appendChild(nm);
+        item.appendChild(btn);
+        box.appendChild(item);
+      });
+    }, function () {
+      box.innerHTML = '<p class="hint">Could not load your signups. Please try again.</p>';
+    });
+  }
+
+  // Inline confirm ("Yes, cancel it"), then cancel that one role.
+  function askCancel(role, row, btn, email) {
+    if (btn.dataset.armed) {
+      btn.disabled = true;
+      btn.textContent = 'Cancelling…';
+      apiCall('cancelSignup', { email: email, role: role, row: String(row) }, function (res) {
+        if (!res || !res.ok) {
+          btn.disabled = false;
+          btn.textContent = 'Cancel';
+          delete btn.dataset.armed;
+          showMsg('msg-cancel', (res && res.error) || 'Something went wrong. Please try again.', 'err');
+          return;
+        }
+        var item = btn.parentNode;
+        if (item && item.parentNode) item.parentNode.removeChild(item);
+        showMsg('msg-cancel', 'Cancelled — the spot is open again.', '');
+      }, function () {
+        btn.disabled = false;
+        btn.textContent = 'Cancel';
+        delete btn.dataset.armed;
+        showMsg('msg-cancel', 'Something went wrong. Please try again.', 'err');
+      });
+      return;
+    }
+    btn.dataset.armed = '1';
+    btn.classList.add('confirm');
+    btn.textContent = 'Yes, cancel it';
+    setTimeout(function () {
+      if (btn.dataset.armed && btn.isConnected) {
+        delete btn.dataset.armed;
+        btn.classList.remove('confirm');
+        btn.textContent = 'Cancel';
+      }
+    }, 8000);
+  }
+
+  function toggleCancelBox() {
+    var box = document.getElementById('cancel-box');
+    var showing = box.style.display === 'none';
+    box.style.display = showing ? 'block' : 'none';
+    if (showing) {
+      var em = document.getElementById('email').value.trim();
+      if (em) document.getElementById('cancel-email').value = em;
+      if (box.scrollIntoView) box.scrollIntoView();
+    }
+  }
+
+  function findMySignups() {
+    var email = document.getElementById('cancel-email').value.trim();
+    if (!email || email.indexOf('@') < 1) { showMsg('msg-cancel', 'Please enter the email address you signed up with.', 'err'); return; }
+    showMsg('msg-cancel', '', '');
+    loadMySignups(email, 'cancel-list');
   }
 
   function goToRoles() {
