@@ -35,7 +35,7 @@
   .remember input { width: 18px; height: 18px; flex: none; accent-color: #990000; }
   .role {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 10px;
     padding: 11px 12px;
     background: #fff;
@@ -44,9 +44,11 @@
     margin-bottom: 8px;
     cursor: pointer;
   }
-  .role input { width: 20px; height: 20px; flex: none; accent-color: #990000; }
-  .role .rname { flex: 1; }
-  .role .spots { font-size: 14px; color: #555; white-space: nowrap; }
+  .role input { width: 20px; height: 20px; flex: none; accent-color: #990000; margin-top: 2px; }
+  .role .rtext { flex: 1; }
+  .role .rname { display: block; }
+  .role .rdesc { display: block; font-size: 13px; color: #555; margin-top: 2px; }
+  .role .spots { font-size: 14px; color: #555; white-space: nowrap; margin-top: 2px; }
   .role .spots.low { color: #990000; font-weight: 700; }
   .role:has(input:checked) { border-color: #990000; background: #fdf6f6; }
   label.field { display: block; margin-bottom: 12px; }
@@ -182,6 +184,22 @@
 <script>
   var rolesData = [];
 
+  // Short descriptions shown under each role on the form (Darve, Nov 23, 2026).
+  // Keyed by the exact role name from the backend; a role with no entry here
+  // shows its name only. "Creating awards" has no description yet.
+  var ROLE_DESCRIPTIONS = {
+    'Emcee': 'For the Awards & Announcements.',
+    'Food & Beverages': 'Help plan it, buy it, build it & be there to run it.',
+    'Patron Package Table': 'Arrive early enough to assist with tech signups for packages.',
+    'Patron gift bags': 'Plan, purchase, put them together and be there.',
+    'Setup / Decorations': 'Arrive early and help get everything ready.',
+    'Sound / Tech': 'Assist with lights, sound as needed.',
+    'Greeter / Check-in': 'Be early enough to greet and check-in arrivals.',
+    'Photography': 'Take pictures for social media, cellphone is fine.',
+    'Food preparation': 'Assist with getting the food, prep if needed, and be there.',
+    'Door prizes': 'Plan, purchase, prepare & be there.'
+  };
+
   // Talk to the Apps Script backend as a JSON API. Plain fetch() sends no
   // Google cookies to the backend (cross-origin), so a phone signed into
   // several Google accounts cannot be bounced to a /u/ address that 404s —
@@ -256,14 +274,23 @@
         var cb = document.createElement('input');
         cb.type = 'checkbox';
         cb.value = r.name;
+        var tx = document.createElement('span');
+        tx.className = 'rtext';
         var nm = document.createElement('span');
         nm.className = 'rname';
         nm.textContent = r.name;
+        tx.appendChild(nm);
+        if (ROLE_DESCRIPTIONS[r.name]) {
+          var ds = document.createElement('span');
+          ds.className = 'rdesc';
+          ds.textContent = ROLE_DESCRIPTIONS[r.name];
+          tx.appendChild(ds);
+        }
         var sp = document.createElement('span');
         sp.className = 'spots' + (r.open === 1 ? ' low' : '');
         sp.textContent = spotsLabel(r);
         label.appendChild(cb);
-        label.appendChild(nm);
+        label.appendChild(tx);
         label.appendChild(sp);
         box.appendChild(label);
       });
