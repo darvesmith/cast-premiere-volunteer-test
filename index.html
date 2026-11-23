@@ -50,7 +50,29 @@
   .role .rdesc { display: block; font-size: 13px; color: #555; margin-top: 2px; }
   .role .spots { font-size: 14px; color: #555; white-space: nowrap; margin-top: 2px; }
   .role .spots.low { color: #990000; font-weight: 700; }
+  .role .spots.filled { color: #990000; font-weight: 700; }
+  .role.filled { opacity: .65; cursor: default; }
   .role:has(input:checked) { border-color: #990000; background: #fdf6f6; }
+  /* "Who's signed up" panel beside the role picker (Darve, Nov 23, 2026).
+     Side by side on wide screens, stacked below the roles on phones. */
+  .roles-layout { display: block; }
+  .who-panel {
+    background: #fff;
+    border: 1px solid #d9cba8;
+    border-radius: 6px;
+    padding: 12px 14px;
+    margin-top: 16px;
+  }
+  .who-panel h2 { font-family: Georgia, 'Times New Roman', serif; font-size: 17px; margin: 0 0 8px; color: #990000; }
+  .who-role { margin-bottom: 10px; }
+  .who-role b { display: block; font-size: 14px; }
+  .who-names { font-size: 14px; color: #444; }
+  .who-names.none { color: #888; font-style: italic; }
+  @media (min-width: 860px) {
+    .wrap.wide { max-width: 920px; }
+    .roles-layout { display: grid; grid-template-columns: 1fr 250px; gap: 20px; align-items: start; }
+    .who-panel { margin-top: 0; position: sticky; top: 16px; }
+  }
   label.field { display: block; margin-bottom: 12px; }
   label.field span { display: block; font-family: Georgia, 'Times New Roman', serif; font-weight: 700; margin-bottom: 4px; }
   label.field input {
@@ -158,15 +180,25 @@
     <h1>Pick your roles</h1>
     <p class="intro" id="roles-who"></p>
 
-    <fieldset>
-      <legend>Which role would you like?</legend>
-      <p class="hint" id="roles-hint">Loading roles&hellip;</p>
-      <div id="roles"></div>
-    </fieldset>
+    <div class="roles-layout">
+      <div class="roles-main">
+        <fieldset>
+          <legend>Which role would you like?</legend>
+          <p class="hint" id="roles-hint">Loading roles&hellip;</p>
+          <div id="roles"></div>
+        </fieldset>
 
-    <button id="submit" class="action" type="button" onclick="submitForm()">Sign up to volunteer</button>
-    <div id="msg2" class="msg"></div>
-    <button type="button" class="backlink" onclick="goToDetails()">&larr; Back to your details</button>
+        <button id="submit" class="action" type="button" onclick="submitForm()">Sign up to volunteer</button>
+        <div id="msg2" class="msg"></div>
+        <button type="button" class="backlink" onclick="goToDetails()">&larr; Back to your details</button>
+      </div>
+
+      <aside class="who-panel" id="who-panel">
+        <h2>Who&rsquo;s signed up</h2>
+        <p class="hint" id="who-hint">Loading&hellip;</p>
+        <div id="who-list"></div>
+      </aside>
+    </div>
   </div>
 
   <!-- STEP 3: confirmation only -->
@@ -258,22 +290,21 @@
       }
       var roles = res.roles;
       rolesData = roles;
+      loadWhoSignedUp();
       var open = roles.filter(function (r) { return r.open > 0; });
       var box = document.getElementById('roles');
       var hint = document.getElementById('roles-hint');
       box.innerHTML = '';
-      if (!open.length) {
-        hint.textContent = 'All roles are filled — thank you to everyone who signed up!';
-        document.getElementById('submit').disabled = true;
-        return;
-      }
-      hint.textContent = 'Pick one or more roles below.';
-      open.forEach(function (r) {
+      // Filled roles stay listed but cannot be chosen (Darve, Nov 23, 2026).
+      hint.textContent = open.length ? 'Pick one or more roles below.' : 'All roles are filled — thank you to everyone who signed up!';
+      document.getElementById('submit').disabled = !open.length;
+      roles.forEach(function (r) {
         var label = document.createElement('label');
-        label.className = 'role';
+        label.className = 'role' + (r.open === 0 ? ' filled' : '');
         var cb = document.createElement('input');
         cb.type = 'checkbox';
         cb.value = r.name;
+        if (r.open === 0) cb.disabled = true;
         var tx = document.createElement('span');
         tx.className = 'rtext';
         var nm = document.createElement('span');
@@ -287,8 +318,8 @@
           tx.appendChild(ds);
         }
         var sp = document.createElement('span');
-        sp.className = 'spots' + (r.open === 1 ? ' low' : '');
-        sp.textContent = spotsLabel(r);
+        sp.className = 'spots' + (r.open === 1 ? ' low' : '') + (r.open === 0 ? ' filled' : '');
+        sp.textContent = r.open === 0 ? 'Filled' : spotsLabel(r);
         label.appendChild(cb);
         label.appendChild(tx);
         label.appendChild(sp);
@@ -296,6 +327,38 @@
       });
     }, function () {
       document.getElementById('roles-hint').textContent = 'Could not load the roles. Please reload the page and try again.';
+    });
+  }
+
+  // "Who's signed up" panel: first name + last initial per role, in the
+  // same order as the role picker. Roles with no signups show "No one yet".
+  function loadWhoSignedUp() {
+    var hint = document.getElementById('who-hint');
+    var list = document.getElementById('who-list');
+    if (!hint || !list) return;
+    apiCall('getPublicSignups', {}, function (res) {
+      list.innerHTML = '';
+      if (!res || !res.ok || !res.signups) {
+        hint.textContent = 'Could not load the signup list.';
+        return;
+      }
+      hint.textContent = '';
+      var signups = res.signups;
+      rolesData.forEach(function (r) {
+        var names = signups[r.name] || [];
+        var item = document.createElement('div');
+        item.className = 'who-role';
+        var nm = document.createElement('b');
+        nm.textContent = r.name;
+        var ns = document.createElement('span');
+        ns.className = 'who-names' + (names.length ? '' : ' none');
+        ns.textContent = names.length ? names.join(', ') : 'No one yet';
+        item.appendChild(nm);
+        item.appendChild(ns);
+        list.appendChild(item);
+      });
+    }, function () {
+      hint.textContent = 'Could not load the signup list.';
     });
   }
 
@@ -489,6 +552,7 @@
     showMsg('msg1', '', '');
     document.getElementById('roles-who').textContent = 'Thanks, ' + name.split(' ')[0] + ' — pick one or more roles below.';
     document.getElementById('step-details').style.display = 'none';
+    document.querySelector('.wrap').classList.add('wide');
     var roles = document.getElementById('step-roles');
     roles.style.display = 'block';
     loadRoles(); // refresh the counts in case anything filled while they were typing
@@ -497,6 +561,7 @@
 
   function goToDetails() {
     document.getElementById('step-roles').style.display = 'none';
+    document.querySelector('.wrap').classList.remove('wide');
     var details = document.getElementById('step-details');
     details.style.display = 'block';
     document.getElementById('forget').style.display = getRememberedEmail() ? 'inline' : 'none';
@@ -533,6 +598,7 @@
           }
           // Clear the page and show only the confirmation, scrolled into view.
           document.getElementById('step-roles').style.display = 'none';
+          document.querySelector('.wrap').classList.remove('wide');
           document.getElementById('done-text').textContent = 'You signed up for: ' + res.roles.join(', ') + '.';
           var done = document.getElementById('step-done');
           done.style.display = 'block';
@@ -540,6 +606,7 @@
         } catch (e) {
           // Fallback: show the confirmation anyway — the signup was recorded.
           document.getElementById('step-roles').style.display = 'none';
+          document.querySelector('.wrap').classList.remove('wide');
           document.getElementById('step-done').style.display = 'block';
         }
       },
